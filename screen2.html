@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MC Screen</title>
+    <style>
+        @font-face {
+            font-family: 'ttb-Regular';
+            src: url('fonts/ttb-Regular.otf') format('opentype');
+        }
+        body { font-family: 'ttb-Regular', sans-serif; background: #f0f2f5; padding-bottom: 40px; margin: 0; }
+        .header { background: #1e3c72; color: white; padding: 15px; position: sticky; top: 0; z-index: 10; display: flex; justify-content: space-between; }
+        .list { padding: 15px; }
+        .card { background: white; border-radius: 12px; padding: 20px; margin-bottom: 15px; border-left: 8px solid #ccc; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .card.live { border-left-color: #ff4757; }
+        .btn-box { display: flex; gap: 10px; margin-top: 15px; }
+        .btn { flex: 1; padding: 12px; border-radius: 8px; border: 1px solid #ddd; font-family: 'ttb-Regular'; font-weight: bold; cursor: pointer; }
+        .btn:active { transform: scale(0.97); }
+        
+        .last-q-alert { color: #c62828; font-weight: bold; font-size: 18px; margin-bottom: 8px; }
+    </style>
+</head>
+<body>
+    <div class="header"><h2>📱 สคริปต์พิธีกร</h2><div id="count">0 ข้อ</div></div>
+    <div class="list" id="mc-list"></div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, onSnapshot, query, orderBy, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyB3tw0K6Iwh6B_576jzJ4GN-F5UScTDjTI",
+            authDomain: "q-a-project-deecrab.firebaseapp.com",
+            projectId: "q-a-project-deecrab",
+            storageBucket: "q-a-project-deecrab.firebasestorage.app",
+            messagingSenderId: "716425501421",
+            appId: "1:716425501421:web:43cd21b97ddbc516a34ae4"
+        };
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        window.action = (id, s) => { if(confirm("ยืนยัน?")) updateDoc(doc(db, "questions", id), {status: s}); };
+
+        let lastQuestionId = "";
+        let allQuestions = [];
+
+        // 1. ดึงตั้งค่ารหัสคำถามสุดท้าย
+        onSnapshot(doc(db, "settings", "config"), (docSnap) => {
+            if (docSnap.exists()) {
+                lastQuestionId = docSnap.data().lastQuestionId || "";
+                renderMCList();
+            }
+        });
+
+        // 2. ดึงข้อมูลคำถามทั้งหมด
+        onSnapshot(query(collection(db, "questions"), orderBy("createdAt", "asc")), (snap) => {
+            allQuestions = [];
+            snap.forEach(docSnap => {
+                allQuestions.push({ id: docSnap.id, ...docSnap.data() });
+            });
+            renderMCList();
+        });
+
+        // ฟังก์ชันวาดหน้าจอ MC
+        function renderMCList() {
+            const list = document.getElementById("mc-list"); 
+            list.innerHTML = "";
+            let count = 0;
+
+            allQuestions.forEach(d => {
+                if(d.status !== 'approved' && d.status !== 'live') return;
+                count++;
+                
+                const isLast = (d.id === lastQuestionId);
+                const lastQHtml = isLast ? `<div class="last-q-alert">🚨 คำถามสุดท้าย</div>` : '';
+                const cardBorder = isLast ? 'border-left-color: #c62828;' : '';
+
+                list.insertAdjacentHTML('beforeend', `
+                    <div class="card ${d.status === 'live' ? 'live' : ''}" style="${cardBorder}">
+                        <small>${d.status === 'live' ? '🔴 ON AIR' : '🟡 NEXT'}</small>
+                        ${lastQHtml}
+                        <p style="font-size: 20px; font-weight: bold; margin-top: 10px;">"${d.text}"</p>
+                        <small>👤 จาก: ${d.senderName}</small>
+                        <div class="btn-box">
+                            <button class="btn" style="background:#e8f5e9; color:#2e7d32; border-color:#a5d6a7;" onclick="action('${d.id}','completed')">✔️ ถามแล้ว</button>
+                            <button class="btn" style="background:#ffebee; color:#c62828; border-color:#ef9a9a;" onclick="action('${d.id}','rejected')">❌ ไม่ถาม</button>
+                        </div>
+                    </div>`);
+            });
+            document.getElementById("count").innerText = count + " ข้อ";
+        }
+    </script>
+</body>
+</html>

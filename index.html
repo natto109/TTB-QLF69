@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ส่งคำถาม Q&A</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
+    <style>
+        @font-face {
+            font-family: 'ttb-Regular';
+            src: url('fonts/ttb-Regular.otf') format('opentype');
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'ttb-Regular', sans-serif;
+            background-color: #4A90E2;
+            background-image: url('images/bg01.jpg'), linear-gradient(135deg, #4A90E2 0%, #9013FE 100%);
+            background-size: cover; background-position: center; background-attachment: fixed;
+            display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px;
+        }
+
+        .app-container {
+            background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px);
+            width: 100%; max-width: 450px; border-radius: 20px; padding: 30px 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2); text-align: center;
+        }
+
+        .header { margin-bottom: 25px; }
+        .header img { max-width: 180px; max-height: 80px; object-fit: contain; }
+        .header h2 { color: #333; font-weight: 700; font-size: 28px; margin: 0; }
+
+        .input-group { margin-bottom: 15px; text-align: left; }
+        .input-group label { display: block; font-size: 14px; font-weight: 600; color: #444; margin-bottom: 5px; }
+
+        input[type="text"], textarea {
+            width: 100%; padding: 14px 16px; border: 1.5px solid #ddd; border-radius: 12px;
+            font-family: 'ttb-Regular', sans-serif; font-size: 16px; outline: none; background-color: #fafafa;
+            resize: none;
+        }
+
+        .char-count { text-align: right; font-size: 13px; color: #888; margin-top: 5px; transition: color 0.3s ease; }
+        .char-count.limit { color: #ff4757; font-weight: bold; }
+
+        .submit-btn {
+            width: 100%; background: linear-gradient(135deg, #4A90E2 0%, #357ABD 100%);
+            color: white; border: none; padding: 16px; border-radius: 12px;
+            font-family: 'ttb-Regular', sans-serif; font-size: 18px; font-weight: 600; cursor: pointer;
+            transition: transform 0.1s; margin-top: 5px;
+        }
+        .submit-btn:active { transform: scale(0.97); }
+        .submit-btn:disabled { background: #ccc; cursor: not-allowed; }
+
+        @media (max-width: 768px) {
+            body { align-items: flex-start; padding-top: 40px; padding-bottom: 40px; }
+        }
+        
+        /* บังคับให้ SweetAlert ใช้ฟอนต์ ttb-Regular */
+        .swal2-title, .swal2-html-container, .swal2-confirm {
+            font-family: 'ttb-Regular', sans-serif !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <div class="header">
+            <img src="images/logo.png" alt="Logo" id="eventLogo" onerror="this.style.display='none'; document.getElementById('fallbackText').style.display='block';">
+            <h2 id="fallbackText" style="display: none;">Q&A</h2>
+        </div>
+        
+        <div class="input-group" id="nameContainer" style="display: none;">
+            <label>ชื่อของคุณ</label>
+            <input type="text" id="senderName" placeholder="ระบุชื่อ หรือ นามแฝง">
+        </div>
+        
+        <div class="input-group">
+            <label>คำถามของคุณ <span style="color: red;">*</span></label>
+            <textarea id="questionInput" rows="4" placeholder="พิมพ์คำถามที่นี่..." maxlength="250"></textarea>
+            <div id="charCount" class="char-count">0 / 250</div>
+        </div>
+        
+        <button id="submitBtn" class="submit-btn">ส่งคำถาม</button>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, addDoc, serverTimestamp, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyB3tw0K6Iwh6B_576jzJ4GN-F5UScTDjTI",
+            authDomain: "q-a-project-deecrab.firebaseapp.com",
+            projectId: "q-a-project-deecrab",
+            storageBucket: "q-a-project-deecrab.firebasestorage.app",
+            messagingSenderId: "716425501421",
+            appId: "1:716425501421:web:43cd21b97ddbc516a34ae4"
+        };
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        onSnapshot(doc(db, "settings", "config"), (docSnap) => {
+            if (docSnap.exists() && docSnap.data().requireName) {
+                document.getElementById("nameContainer").style.display = "block";
+            } else {
+                document.getElementById("nameContainer").style.display = "none";
+                document.getElementById("senderName").value = "";
+            }
+        });
+
+        const questionInput = document.getElementById("questionInput");
+        const charCount = document.getElementById("charCount");
+
+        questionInput.addEventListener("input", () => {
+            const length = questionInput.value.length;
+            charCount.innerText = `${length} / 250`;
+            if (length >= 250) charCount.classList.add("limit");
+            else charCount.classList.remove("limit");
+        });
+
+        const submitBtn = document.getElementById("submitBtn");
+        submitBtn.addEventListener("click", async () => {
+            const text = questionInput.value.trim();
+            const name = document.getElementById("senderName").value.trim();
+            
+            if (!text) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'แจ้งเตือน',
+                    text: 'กรุณาพิมพ์คำถามก่อนกดส่งครับ',
+                    confirmButtonColor: '#4A90E2',
+                    confirmButtonText: 'ตกลง'
+                });
+                return;
+            }
+            
+            submitBtn.innerText = "กำลังส่ง...";
+            submitBtn.disabled = true;
+
+            try {
+                await addDoc(collection(db, "questions"), {
+                    text: text, 
+                    senderName: name || "ไม่ระบุชื่อ", 
+                    status: "pending", 
+                    createdAt: serverTimestamp()
+                });
+                
+                questionInput.value = "";
+                document.getElementById("senderName").value = "";
+                charCount.innerText = "0 / 250";
+                charCount.classList.remove("limit");
+                
+                // แจ้งเตือนเมื่อส่งสำเร็จ (จะปิดตัวลงเองใน 2 วินาที)
+                Swal.fire({
+                    icon: 'success',
+                    title: 'สำเร็จ!',
+                    text: 'ส่งคำถามเรียบร้อยแล้ว',
+                    showConfirmButton: false,
+                    timer: 2000
+                });
+            } catch (e) { 
+                Swal.fire({
+                    icon: 'error',
+                    title: 'ผิดพลาด',
+                    text: 'เกิดข้อผิดพลาด ลองตรวจสอบอินเทอร์เน็ตดูครับ',
+                    confirmButtonColor: '#ff4757',
+                    confirmButtonText: 'ตกลง'
+                });
+            } finally {
+                submitBtn.innerText = "ส่งคำถาม";
+                submitBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>

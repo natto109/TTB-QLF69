@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <title>Live Q&A Screen</title>
+    <style>
+        @font-face {
+            font-family: 'ttb-Regular';
+            src: url('fonts/ttb-Regular.otf') format('opentype');
+        }
+        body { 
+            background: #1a1a1a url('images/bg02.jpg') center/cover fixed;
+            font-family: 'ttb-Regular', sans-serif; color: white; margin: 0; overflow: hidden;
+            display: flex; align-items: center; justify-content: center; height: 100vh;
+        }
+        .brand-logo { position: fixed; bottom: 30px; right: 40px; max-width: 200px; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.5)); }
+        #live-question-container { width: 85%; display: flex; flex-direction: column; gap: 20px; }
+        .question-box { 
+            background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(10px);
+            border-left: 10px solid #4CAF50; border-radius: 20px; padding: 40px; 
+            box-shadow: 0 15px 35px rgba(0,0,0,0.5); animation: fadeIn 0.5s ease-out;
+        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+    <img src="images/logo.png" class="brand-logo" onerror="this.style.display='none'">
+    <div id="live-question-container"></div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, onSnapshot, query, where, doc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyB3tw0K6Iwh6B_576jzJ4GN-F5UScTDjTI",
+            authDomain: "q-a-project-deecrab.firebaseapp.com",
+            projectId: "q-a-project-deecrab",
+            storageBucket: "q-a-project-deecrab.firebasestorage.app",
+            messagingSenderId: "716425501421",
+            appId: "1:716425501421:web:43cd21b97ddbc516a34ae4"
+        };
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        let liveQuestions = [], maxDisplay = 3, isAutoScroll = true, currentIndex = 0, interval = null;
+
+        onSnapshot(doc(db, "settings", "config"), (s) => {
+            if(s.exists()){
+                const d = s.data(); maxDisplay = d.maxDisplay || 3; isAutoScroll = d.autoScroll;
+                render(); startCarousel();
+            }
+        });
+
+        onSnapshot(query(collection(db, "questions"), where("status", "==", "live")), (snap) => {
+            liveQuestions = snap.docs.map(d => d.data()).sort((a,b) => (a.createdAt?.seconds||0)-(b.createdAt?.seconds||0));
+            currentIndex = 0; render(); startCarousel();
+        });
+
+        function startCarousel() {
+            clearInterval(interval);
+            if(isAutoScroll && liveQuestions.length > maxDisplay) {
+                interval = setInterval(() => { currentIndex = (currentIndex + 1) % liveQuestions.length; render(); }, 6000);
+            }
+        }
+
+        function render() {
+            const container = document.getElementById("live-question-container");
+            container.innerHTML = "";
+            if(!liveQuestions.length) { container.innerHTML = "<h1>รอคำถาม...</h1>"; return; }
+            
+            const sizes = { 1: '4.5rem', 2: '3.2rem', 3: '2.5rem', 4: '2rem', 5: '1.6rem' };
+            const currentItems = liveQuestions.length <= maxDisplay ? liveQuestions : Array.from({length: maxDisplay}, (_, i) => liveQuestions[(currentIndex + i) % liveQuestions.length]);
+
+            currentItems.forEach(d => {
+                container.insertAdjacentHTML('beforeend', `
+                    <div class="question-box">
+                        <div style="font-size: ${sizes[maxDisplay]}; font-weight: bold;">"${d.text}"</div>
+                        ${d.senderName !== "ไม่ระบุชื่อ" ? `<div style="font-size: 1.5rem; color: #81C784; margin-top: 15px;">👤 ${d.senderName}</div>` : ''}
+                    </div>`);
+            });
+        }
+
+        document.addEventListener("keydown", (e) => {
+            if(liveQuestions.length > maxDisplay) {
+                if(e.key === "ArrowRight") { currentIndex = (currentIndex + 1) % liveQuestions.length; render(); startCarousel(); }
+                if(e.key === "ArrowLeft") { currentIndex = (currentIndex - 1 + liveQuestions.length) % liveQuestions.length; render(); startCarousel(); }
+            }
+        });
+    </script>
+</body>
+</html>

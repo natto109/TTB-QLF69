@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <title>Live Q&A Screen</title>
+    <style>
+        @font-face {
+            /* font-family: 'ttb-Regular';
+            src: url('fonts/ttb-Regular.otf') format('opentype'); */
+            font-family: 'ttb-ExtraBold';
+            src: url('fonts/ttb-ExtraBold.otf') format('opentype');
+        }
+        
+        * { box-sizing: border-box; }
+        
+        body { 
+            /* 1. เปลี่ยน BG เป็นสีขาว */
+            background-color: #ffffff; 
+            font-family: 'ttb-ExtraBold', sans-serif; 
+            /* 2. เปลี่ยนสีตัวหนังสือหลักเป็นสีดำ/เทาเข้ม เพื่อให้ไม่จมกับพื้นขาว */
+            color: #333; 
+            margin: 0; 
+            overflow: hidden;
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            height: 100vh;
+        }
+
+        .brand-logo { 
+            position: fixed; 
+            top: 30px; 
+            right: 40px; 
+            max-width: 200px; 
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1)); 
+            z-index: 100;
+        }
+
+        #live-question-container { 
+            width: 85%; 
+            max-width: 1400px; 
+            display: flex; 
+            flex-direction: column; 
+            gap: 25px; 
+        }
+
+        .question-box { 
+            /* ปรับแต่งกล่องคำถามให้เข้ากับพื้นหลังขาว */
+            background: #ffffff; 
+            border: 1px solid #eee; /* เพิ่มขอบบางๆ */
+            /* 3. เปลี่ยนแถบสีด้านหน้าเป็นสี #0050F0 */
+            border-left: 12px solid #0050F0; 
+            border-radius: 20px; 
+            padding: 40px 50px; 
+            /* ปรับเงาให้ดูนุ่มนวลขึ้นบนพื้นขาว */
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.08); 
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        @keyframes fadeIn { 
+            from { opacity: 0; transform: translateY(20px); } 
+            to { opacity: 1; transform: translateY(0); } 
+        }
+
+        .question-text { 
+            font-weight: bold; 
+            line-height: 1.4; 
+            color: #000000; /* ตัวหนังสือคำถามสีดำสนิท */
+        }
+
+        .question-sender { 
+            margin-top: 15px; 
+            /* เปลี่ยนสีชื่อผู้ถามให้เป็นโทนน้ำเงินเข้ากับธีม */
+            color: #0050F0; 
+            font-weight: 600; 
+        }
+    </style>
+</head>
+<body>
+    <img src="images/logo.png" class="brand-logo" onerror="this.style.display='none'">
+    <div id="live-question-container"></div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, onSnapshot, query, where, doc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyB3tw0K6Iwh6B_576jzJ4GN-F5UScTDjTI",
+            authDomain: "q-a-project-deecrab.firebaseapp.com",
+            projectId: "q-a-project-deecrab",
+            storageBucket: "q-a-project-deecrab.firebasestorage.app",
+            messagingSenderId: "716425501421",
+            appId: "1:716425501421:web:43cd21b97ddbc516a34ae4"
+        };
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        let liveQuestions = [], maxDisplay = 3, isAutoScroll = true, currentIndex = 0, interval = null;
+
+        onSnapshot(doc(db, "settings", "config"), (s) => {
+            if(s.exists()){
+                const d = s.data(); 
+                maxDisplay = d.maxDisplay || 3; 
+                isAutoScroll = d.autoScroll !== undefined ? d.autoScroll : true;
+                render(); 
+                startCarousel();
+            }
+        });
+
+        onSnapshot(query(collection(db, "questions"), where("status", "==", "live")), (snap) => {
+            liveQuestions = snap.docs.map(d => d.data()).sort((a,b) => (a.createdAt?.seconds||0)-(b.createdAt?.seconds||0));
+            currentIndex = 0; 
+            render(); 
+            startCarousel();
+        });
+
+        function startCarousel() {
+            clearInterval(interval);
+            if(isAutoScroll && liveQuestions.length > maxDisplay) {
+                interval = setInterval(() => { 
+                    currentIndex = (currentIndex + 1) % liveQuestions.length; 
+                    render(); 
+                }, 6000);
+            }
+        }
+
+        function render() {
+            const container = document.getElementById("live-question-container");
+            container.innerHTML = "";
+            if(!liveQuestions.length) { 
+                container.innerHTML = "<h1 style='color:#ccc; text-align:center;'>รอคำถาม...</h1>"; 
+                return; 
+            }
+            
+            const sizes = { 1: '4.5rem', 2: '3.2rem', 3: '2.5rem', 4: '2rem', 5: '1.6rem' };
+            const currentItems = liveQuestions.length <= maxDisplay ? liveQuestions : Array.from({length: maxDisplay}, (_, i) => liveQuestions[(currentIndex + i) % liveQuestions.length]);
+
+            currentItems.forEach(d => {
+                container.insertAdjacentHTML('beforeend', `
+                    <div class="question-box">
+                        <div class="question-text" style="font-size: ${sizes[maxDisplay]};">"${d.text}"</div>
+                        ${d.senderName !== "ไม่ระบุชื่อ" ? `<div class="question-sender" style="font-size: 1.5rem;">👤 ${d.senderName}</div>` : ''}
+                    </div>`);
+            });
+        }
+
+        document.addEventListener("keydown", (e) => {
+            if(liveQuestions.length > maxDisplay) {
+                if(e.key === "ArrowRight") { currentIndex = (currentIndex + 1) % liveQuestions.length; render(); startCarousel(); }
+                if(e.key === "ArrowLeft") { currentIndex = (currentIndex - 1 + liveQuestions.length) % liveQuestions.length; render(); startCarousel(); }
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <title>Q&A Moderator Dashboard</title>
+    <style>
+        @font-face {
+            font-family: 'ttb-Regular';
+            src: url('fonts/ttb-Regular.otf') format('opentype');
+        }
+        body { font-family: 'ttb-Regular', sans-serif; background: #eaeff1; margin: 20px; }
+        
+        .header { display: flex; justify-content: space-between; align-items: center; background: white; padding: 15px 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); flex-wrap: wrap; gap: 10px; }
+        .controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+        
+        /* Layout แบบ 4 คอลัมน์ (Kanban) */
+        .kanban { display: flex; gap: 15px; overflow-x: auto; padding-bottom: 10px; align-items: flex-start; }
+        .column { flex: 1; min-width: 280px; background: #f4f4f4; padding: 15px; border-radius: 8px; border: 1px solid #ddd; height: fit-content; }
+        .column h3 { margin-top: 0; margin-bottom: 15px; color: #1e3c72; border-bottom: 2px solid #1e3c72; padding-bottom: 8px; font-size: 16px; display: flex; justify-content: space-between; align-items: center; }
+        
+        /* การ์ดคำถาม */
+        .card { background: white; padding: 14px; margin-bottom: 12px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border-left: 5px solid #0050F0; position: relative; }
+        .card.is-last { border-left-color: #ff4757; background-color: #fff5f5; }
+        
+        .card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+        .radio-label { display: flex; align-items: center; gap: 4px; cursor: pointer; font-size: 12px; color: #d32f2f; font-weight: bold; background: #ffebee; padding: 2px 8px; border-radius: 12px; }
+        
+        .sender-name { font-size: 13px; color: #666; }
+        .question-text { font-size: 15px; font-weight: bold; line-height: 1.4; margin: 8px 0; word-break: break-word; }
+        .last-badge { display: inline-block; background: #ff4757; color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-bottom: 4px; }
+
+        button { cursor: pointer; padding: 6px 10px; border-radius: 4px; border: 1px solid #ccc; font-family: 'ttb-Regular'; font-size: 13px; background: #fff; margin-right: 4px; margin-bottom: 4px; }
+        button:hover { background: #f0f0f0; }
+        
+        .export-btn { background: #4CAF50; color: white; border: none; font-weight: bold; padding: 8px 12px; }
+        .apply-btn { background: #ff4757; color: white; border: none; font-weight: bold; padding: 8px 12px; }
+        .clear-btn { background: white; color: #ff4757; border: 1px solid #ff4757; font-weight: bold; padding: 8px 12px; }
+        .reset-btn { background: #555; color: white; border: none; font-weight: bold; padding: 8px 12px; }
+        
+        .toggle-container { font-size: 13px; background: #f9f9f9; padding: 6px 10px; border-radius: 6px; border: 1px solid #ddd; display: flex; align-items: center; gap: 5px; font-weight: bold; }
+        
+        .move-btn-group { display: flex; gap: 5px; margin-top: 8px; border-top: 1px dashed #eee; padding-top: 8px; }
+        .move-btn-group button { flex: 1; margin: 0; background: #f8f9fa; font-size: 12px; }
+        
+        #completed-list .card { background: #e0e0e0; opacity: 0.85; border-left-color: #888; }
+        .count-badge { background: #1e3c72; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h2>Dashboard จัดการคำถาม</h2>
+        <div class="controls">
+            <button id="applyLastQBtn" class="apply-btn">✅ Apply คำถามสุดท้าย</button>
+            <button id="clearLastQBtn" class="clear-btn">❌ เคลียร์</button>
+
+            <label class="toggle-container">📺 จอ: 
+                <select id="maxDisplaySelect" style="padding: 2px 5px; font-family: 'ttb-Regular';">
+                    <option value="1">1</option><option value="2">2</option><option value="3" selected>3</option>
+                    <option value="4">4</option><option value="5">5</option>
+                </select>
+            </label>
+            <label class="toggle-container" style="background: #e3f2fd; border-color: #90caf9;">
+                <input type="checkbox" id="toggleAutoScrollInput" checked> 🔄 เลื่อนออโต้
+            </label>
+            <label class="toggle-container">
+                <input type="checkbox" id="toggleNameInput"> เปิดชื่อ
+            </label>
+            <button id="exportBtn" class="export-btn">📥 Export</button>
+            <button id="resetBtn" class="reset-btn">🗑️ Reset</button>
+        </div>
+    </div>
+
+    <div class="kanban">
+        <div class="column">
+            <h3>1. รอคัดกรอง (Inbox) <span class="count-badge" id="count-pending">0</span></h3>
+            <div id="pending-list"></div>
+        </div>
+        <div class="column">
+            <h3>2. เตรียมขึ้นจอ (Queue) <span class="count-badge" id="count-approved">0</span></h3>
+            <div id="approved-list"></div>
+        </div>
+        <div class="column">
+            <h3>3. กำลังแสดง (Live) <span class="count-badge" id="count-live">0</span></h3>
+            <div id="live-list"></div>
+        </div>
+        <div class="column">
+            <h3>4. ถามแล้ว (Completed) <span class="count-badge" id="count-completed">0</span></h3>
+            <div id="completed-list"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, onSnapshot, query, orderBy, doc, updateDoc, getDocs, deleteDoc, setDoc, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyB3tw0K6Iwh6B_576jzJ4GN-F5UScTDjTI",
+            authDomain: "q-a-project-deecrab.firebaseapp.com",
+            projectId: "q-a-project-deecrab",
+            storageBucket: "q-a-project-deecrab.firebasestorage.app",
+            messagingSenderId: "716425501421",
+            appId: "1:716425501421:web:43cd21b97ddbc516a34ae4"
+        };
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // โหลดการตั้งค่าจาก Firebase
+        let globalLastQuestionId = "";
+        const configRef = doc(db, "settings", "config");
+        onSnapshot(configRef, (s) => {
+            if(s.exists()){
+                const d = s.data();
+                document.getElementById("toggleNameInput").checked = d.requireName || false;
+                document.getElementById("maxDisplaySelect").value = d.maxDisplay || 3;
+                document.getElementById("toggleAutoScrollInput").checked = d.autoScroll !== undefined ? d.autoScroll : true;
+                globalLastQuestionId = d.lastQuestionId || "";
+            }
+        });
+
+        // ปุ่ม Apply และ Clear คำถามสุดท้าย
+        document.getElementById("applyLastQBtn").onclick = async () => {
+            const selected = document.querySelector('input[name="lastQRadio"]:checked');
+            if (selected) {
+                await setDoc(configRef, { lastQuestionId: selected.value }, { merge: true });
+            } else {
+                alert("กรุณากดเลือกที่วงกลมหน้าคำถามในช่อง '2. เตรียมขึ้นจอ' ก่อนกด Apply ครับ");
+            }
+        };
+
+        document.getElementById("clearLastQBtn").onclick = async () => {
+            await setDoc(configRef, { lastQuestionId: "" }, { merge: true });
+            const radios = document.querySelectorAll('input[name="lastQRadio"]');
+            for (let i = 0; i < radios.length; i++) radios[i].checked = false;
+        };
+
+        // ตั้งค่าอื่นๆ
+        document.getElementById("toggleNameInput").addEventListener("change", (e) => setDoc(configRef, {requireName: e.target.checked}, {merge:true}));
+        document.getElementById("maxDisplaySelect").addEventListener("change", (e) => setDoc(configRef, {maxDisplay: parseInt(e.target.value)}, {merge:true}));
+        document.getElementById("toggleAutoScrollInput").addEventListener("change", (e) => setDoc(configRef, {autoScroll: e.target.checked}, {merge:true}));
+
+        // ฟังก์ชันเปลี่ยนสถานะ (ส่งขึ้นจอแล้วเคลียร์ข้อเดิมลงให้อัตโนมัติ)
+        window.changeStatus = async (id, s) => {
+            try {
+                if (s === 'live') {
+                    const liveQuery = query(collection(db, "questions"), where("status", "==", "live"));
+                    const liveSnapshot = await getDocs(liveQuery);
+                    const clearPromises = [];
+                    liveSnapshot.forEach((docSnap) => {
+                        clearPromises.push(updateDoc(doc(db, "questions", docSnap.id), { status: 'completed' }));
+                    });
+                    await Promise.all(clearPromises);
+                }
+                await updateDoc(doc(db, "questions", id), { status: s });
+            } catch (error) { console.error("Error updating status:", error); }
+        };
+
+        // ฟังก์ชันเลื่อนคิวในช่องเตรียมขึ้นจอ
+        window.approvedItems = [];
+        window.moveQueue = async (id, direction) => {
+            const index = window.approvedItems.findIndex(item => item.id === id);
+            if (index === -1) return;
+            let swapIndex = direction === 'up' ? index - 1 : index + 1;
+            if (swapIndex < 0 || swapIndex >= window.approvedItems.length) return; 
+
+            const item1 = window.approvedItems[index];
+            const item2 = window.approvedItems[swapIndex];
+            try {
+                await updateDoc(doc(db, "questions", item1.id), { createdAt: item2.createdAt });
+                await updateDoc(doc(db, "questions", item2.id), { createdAt: item1.createdAt });
+            } catch (error) { console.error(error); }
+        };
+
+        // แสดงผล Real-time บนคอลัมน์ Kanban
+        onSnapshot(query(collection(db, "questions"), orderBy("createdAt", "asc")), (snap) => {
+            const columns = ["pending-list", "approved-list", "live-list", "completed-list"];
+            for (let i = 0; i < columns.length; i++) {
+                const el = document.getElementById(columns[i]);
+                if (el) el.innerHTML = "";
+            }
+            
+            window.approvedItems = [];
+            let counts = { pending: 0, approved: 0, live: 0, completed: 0 };
+
+            snap.forEach(docSnap => {
+                const d = docSnap.data(); 
+                const id = docSnap.id;
+                
+                if (!d || d.status === 'rejected') return;
+                const status = d.status || 'pending';
+                
+                if (counts[status] !== undefined) counts[status]++;
+                if (status === 'approved') window.approvedItems.push({ id: id, createdAt: d.createdAt });
+
+                let actionButtons = "";
+                if (status === 'pending') {
+                    actionButtons = `<button onclick="changeStatus('${id}','approved')">✅ เลือก</button> <button onclick="changeStatus('${id}','rejected')">❌ ปัดตก</button>`;
+                } else if (status === 'approved') {
+                    actionButtons = `
+                        <div>
+                            <button onclick="changeStatus('${id}','live')" style="background: #e8f5e9; border-color: #a5d6a7;">📺 ส่งขึ้นจอ</button>
+                            <button onclick="changeStatus('${id}','pending')">↩️ คืนไป</button>
+                        </div>
+                        <div class="move-btn-group">
+                            <button onclick="moveQueue('${id}','up')">⬆️ ขึ้น</button>
+                            <button onclick="moveQueue('${id}','down')">⬇️ ลง</button>
+                        </div>
+                    `;
+                } else if (status === 'live') {
+                    actionButtons = `<button onclick="changeStatus('${id}','completed')">⬇️ เอาลงจากจอ (ถามแล้ว)</button>`;
+                } else if (status === 'completed') {
+                    actionButtons = `<button onclick="changeStatus('${id}','live')">📺 เอาขึ้นจออีกรอบ</button> <button onclick="changeStatus('${id}','rejected')">❌ ลบทิ้ง</button>`;
+                }
+
+                // การตรวจสอบคำถามสุดท้าย
+                const isLast = (id === globalLastQuestionId);
+                
+                // --- สร้าง Radio Button เฉพาะช่อง approved เท่านั้น ---
+                let radioHtml = "";
+                if (status === 'approved') {
+                    radioHtml = `<label class="radio-label"><input type="radio" name="lastQRadio" value="${id}" ${isLast ? 'checked' : ''}> คำถามสุดท้าย</label>`;
+                }
+                
+                const safeName = (d.senderName && d.senderName !== "ไม่ระบุชื่อ") ? '👤 ' + d.senderName : 'ไม่ระบุชื่อ';
+                const safeText = d.text ? d.text : "";
+
+                const card = `
+                    <div class="card ${isLast ? 'is-last' : ''}">
+                        <div class="card-top">
+                            <span class="sender-name">${safeName}</span>
+                            ${radioHtml}
+                        </div>
+                        ${isLast ? '<div class="last-badge">🚨 คำถามสุดท้าย</div>' : ''}
+                        <div class="question-text">"${safeText}"</div>
+                        <div>${actionButtons}</div>
+                    </div>`;
+                    
+                const targetColumn = document.getElementById(status + "-list");
+                if (targetColumn) {
+                    targetColumn.insertAdjacentHTML('beforeend', card);
+                }
+            });
+
+            document.getElementById("count-pending").innerText = counts.pending;
+            document.getElementById("count-approved").innerText = counts.approved;
+            document.getElementById("count-live").innerText = counts.live;
+            document.getElementById("count-completed").innerText = counts.completed;
+            
+        }, (error) => {
+            console.error("Firebase Sync Error:", error);
+            alert("ไม่สามารถดึงข้อมูลจากระบบได้ กรุณาตรวจสอบอินเทอร์เน็ตครับ");
+        });
+
+        // ปุ่มเคลียร์ข้อมูลทั้งหมด
+        document.getElementById("resetBtn").onclick = async () => { 
+            if(confirm("คำเตือน: ลบข้อมูลทั้งหมดเพื่อเริ่มใหม่?")){ 
+                (await getDocs(collection(db, "questions"))).forEach(d => deleteDoc(d.ref)); 
+            } 
+        };
+
+        // ปุ่ม Export แบบรองรับไฟล์ขนาดใหญ่
+        document.getElementById("exportBtn").onclick = async () => {
+            try {
+                const btn = document.getElementById("exportBtn");
+                btn.innerText = "⏳ รอสักครู่...";
+                btn.disabled = true;
+
+                const snap = await getDocs(query(collection(db, "questions"), orderBy("createdAt", "asc")));
+                let csvContent = "\uFEFFวัน/เวลาที่ส่ง,ชื่อผู้ถาม,คำถาม,สถานะปัจจุบัน\n"; 
+                const statusMap = { 'pending': 'รอคัดกรอง', 'approved': 'เตรียมขึ้นจอ', 'live': 'กำลังแสดงบนจอ', 'completed': 'ถามแล้ว', 'rejected': 'ถูกปัดตก/ลบทิ้ง' };
+                
+                snap.forEach(docSnap => {
+                    const d = docSnap.data();
+                    const text = d.text ? d.text.replace(/"/g, '""').replace(/\n/g, ' ') : "";
+                    const name = d.senderName ? d.senderName.replace(/"/g, '""') : "ไม่ระบุชื่อ";
+                    const timeStr = d.createdAt ? d.createdAt.toDate().toLocaleString('th-TH') : "ไม่มีข้อมูลเวลา";
+                    csvContent += `"${timeStr}","${name}","${text}","${statusMap[d.status] || d.status}"\n`;
+                });
+
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.href = url;
+                link.setAttribute("download", `QA_Export_${new Date().toISOString().split('T')[0]}.csv`);
+                document.body.appendChild(link); link.click();
+                document.body.removeChild(link); URL.revokeObjectURL(url);
+                
+                btn.innerText = "📥 Export"; btn.disabled = false;
+            } catch (error) { 
+                alert("เกิดข้อผิดพลาดในการโหลดไฟล์"); 
+            }
+        };
+    </script>
+</body>
+</html>
