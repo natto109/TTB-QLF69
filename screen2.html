@@ -18,7 +18,18 @@
         .btn { flex: 1; padding: 12px; border-radius: 8px; border: 1px solid #ddd; font-family: 'ttb-Regular'; font-weight: bold; cursor: pointer; }
         .btn:active { transform: scale(0.97); }
         
-        .last-q-alert { color: #c62828; font-weight: bold; font-size: 18px; margin-bottom: 8px; }
+        /* .last-q-alert { color: #c62828; font-weight: bold; font-size: 24px; margin-bottom: 8px; } */
+        .last-q-alert { 
+            color: #c62828; 
+            font-weight: bold; 
+            font-size: 30px; 
+            margin-bottom: 8px; 
+            animation: blinker 1s linear infinite; /* คำสั่งกระพริบ 1 วินาที/ครั้ง */
+        }
+
+        @keyframes blinker {
+            50% { opacity: 0; }
+        }
     </style>
 </head>
 <body>
@@ -80,8 +91,8 @@
                     <div class="card ${d.status === 'live' ? 'live' : ''}" style="${cardBorder}">
                         <small>${d.status === 'live' ? '🔴 ON AIR' : '🟡 NEXT'}</small>
                         ${lastQHtml}
-                        <p style="font-size: 20px; font-weight: bold; margin-top: 10px;">"${d.text}"</p>
-                        <small>👤 จาก: ${d.senderName}</small>
+                        <p style="font-size: 40px; font-weight: bold; margin-top: 10px;">"${d.text}"</p>
+                        <small style="font-size: 18px; color: #555;">👤 จาก: ${d.senderName}</small>
                         <div class="btn-box">
                             <button class="btn" style="background:#e8f5e9; color:#2e7d32; border-color:#a5d6a7;" onclick="action('${d.id}','completed')">✔️ ถามแล้ว</button>
                             <button class="btn" style="background:#ffebee; color:#c62828; border-color:#ef9a9a;" onclick="action('${d.id}','rejected')">❌ ไม่ถาม</button>
